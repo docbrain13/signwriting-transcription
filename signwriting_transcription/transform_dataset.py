@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 
 import pandas as pd
-from signwriting.formats.swu_to_fsw import swu_add_prefix
+from signwriting.formats.swu_to_fsw import swu2fsw
 
 
 def get_dataset_tokens(pose: str):
@@ -29,7 +29,7 @@ def map_datum(row, poses_dir: Path):
         "signal_end": row['end'],
         "encoder_prompt": " ".join(source_tokens),
         "decoder_prompt": f"__{row['videoLanguage']}__",
-        "output": swu_add_prefix(row['text'])
+        "output": swu2fsw(row['text'])
     }
 
 

@@ -1,21 +1,36 @@
 # SignWriting Transcription
 
-# Default configuration
-CONFIG_FILE ?= signwriting_transcription/config.yaml
-
 # Data paths
 DATA_DIR ?= $(PWD)/data
 POSES_DIR ?= $(PWD)/poses
 OUTPUT_DIR ?= $(PWD)/results
-
 DATA_CSV ?= $(DATA_DIR)/data.csv
 
+# Default configuration
+CONFIG_FILE ?= signwriting_transcription/config.yaml
+
 ifeq ($(firstword $(MAKECMDGOALS)),overfit)
-CONFIG_FILE := example/overfit_config.yaml
 DATA_DIR := example/data
 POSES_DIR := example/poses
 OUTPUT_DIR := example/results
 DATA_CSV := example/data.csv
+CONFIG_FILE := example/overfit_config.yaml
+endif
+
+ifeq ($(firstword $(MAKECMDGOALS)),s2m)
+DATA_DIR := $(PWD)/../S2M/data
+POSES_DIR := $(PWD)/../S2M/poses
+OUTPUT_DIR := $(PWD)/../S2M/results
+DATA_CSV := $(DATA_DIR)/signs.csv
+CONFIG_FILE := $(OUTPUT_DIR)/s2m_config.yaml
+endif
+
+ifeq ($(firstword $(MAKECMDGOALS)),s2m-test)
+DATA_DIR := $(PWD)/../S2M-Test/data
+POSES_DIR := $(PWD)/../S2M-Test/poses
+OUTPUT_DIR := $(PWD)/../S2M-Test/results
+DATA_CSV := $(DATA_DIR)/signs.csv
+CONFIG_FILE := $(OUTPUT_DIR)/s2m_config.yaml
 endif
 
 # Model settings
@@ -33,7 +48,7 @@ help:
 
 # ----------------------------------------------------------
 
-.PHONY: prepare train overfit
+.PHONY: prepare train overfit s2m s2m-test
 
 $(DATA_DIR):
 	mkdir -p $(DATA_DIR)
@@ -85,11 +100,22 @@ $(OUTPUT_DIR)/config.yaml: $(CONFIG_FILE)
 ## Prepare model, tokenizer, processor using multimodalhugs
 prepare: $(OUTPUT_DIR)/config.yaml $(TRANSFORM_STAMP)
 	@echo "Setting up multimodalhugs..."
-	multimodalhugs-setup --modality "pose2text" --config_path "$(OUTPUT_DIR)/config.yaml"
+	tmp_config=$$(mktemp); \
+	tokenizer_path=$$(grep 'text_tokenizer_path:' "$(OUTPUT_DIR)/config.yaml" | head -1 | sed 's/.*text_tokenizer_path: *//'); \
+	sed \
+	  -e '/new_vocabulary:/d' \
+	  -e '/text_tokenizer_path:/d' \
+	  "$(OUTPUT_DIR)/config.yaml" > $$tmp_config; \
+	printf '\nprocessor:\n  pipeline: pose2text\n  tokenizer_path: %s\n' "$$tokenizer_path" >> $$tmp_config; \
+	multimodalhugs-setup \
+	  --modality "pose2text" \
+	  --config_path $$tmp_config \
+	  --output_dir "$(OUTPUT_DIR)"; \
+	rm -f $$tmp_config
 
 ## Train the model
 train:
-	huggingface-cli login --token "$(HUGGINGFACE_TOKEN)"
+	# huggingface-cli login --token "$(HUGGINGFACE_TOKEN)"
 
 	# Train the model
 	@echo "Starting training..."
@@ -117,7 +143,30 @@ example/overfit_config.yaml: signwriting_transcription/config.yaml
 	  -e 's/eval_on_start: True/eval_on_start: False/' \
 	  "signwriting_transcription/config.yaml" > "$@"
 
+$(OUTPUT_DIR)/s2m_config.yaml: signwriting_transcription/config.yaml
+	mkdir -p "$(OUTPUT_DIR)"
+	sed \
+	  -e 's/auto_find_batch_size: True/auto_find_batch_size: False/' \
+	  -e 's/per_device_train_batch_size: .*/per_device_train_batch_size: 4/' \
+	  -e 's/per_device_eval_batch_size: .*/per_device_eval_batch_size: 4/' \
+	  -e 's/dataloader_num_workers: .*/dataloader_num_workers: 4/' \
+	  -e 's/gradient_accumulation_steps: .*/gradient_accumulation_steps: 1/' \
+	  -e 's/multimodal_mapper_dropout: .*/multimodal_mapper_dropout: 0.0/' \
+	  -e 's/weight_decay: .*/weight_decay: 0/' \
+	  -e 's/lr_scheduler_type: .*/lr_scheduler_type: "constant"/' \
+	  -e 's/warmup_steps: .*/warmup_steps: 0/' \
+	  -e 's/max_steps: .*/max_steps: 256/' \
+	  -e 's/eval_steps: .*/eval_steps: 256/' \
+	  -e 's/save_steps: .*/save_steps: 256/' \
+	  -e 's/num_train_epochs: .*/num_train_epochs: 100/' \
+	  -e 's/do_eval: True/do_eval: False/' \
+	  -e 's/eval_on_start: True/eval_on_start: False/' \
+	  "signwriting_transcription/config.yaml" > "$@"
+
 overfit: example/overfit_config.yaml
+	wandb offline
+
+s2m: $(OUTPUT_DIR)/s2m_config.yaml
 	wandb offline
 
 # Docker commands (platform-agnostic)

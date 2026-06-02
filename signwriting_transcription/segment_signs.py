@@ -12,7 +12,7 @@ def get_segmented_datum(datum, poses_dir: Path):
     with open(file_path, "rb") as f:
         pose = Pose.read(f)
 
-    eaf, _ = segment_pose(pose, verbose=False)
+    eaf, _ = segment_pose(pose)
     sign_annotations = eaf.get_annotation_data_for_tier('SIGN')
 
     if len(sign_annotations) == 0:
