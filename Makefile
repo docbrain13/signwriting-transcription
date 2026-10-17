@@ -22,7 +22,6 @@ DATA_DIR := $(PWD)/../S2M/data
 POSES_DIR := $(PWD)/../S2M/poses
 OUTPUT_DIR := $(PWD)/../S2M/results
 DATA_CSV := $(DATA_DIR)/signs.csv
-CONFIG_FILE := $(OUTPUT_DIR)/s2m_config.yaml
 endif
 
 ifeq ($(firstword $(MAKECMDGOALS)),s2m-test)
@@ -30,7 +29,6 @@ DATA_DIR := $(PWD)/../S2M-Test/data
 POSES_DIR := $(PWD)/../S2M-Test/poses
 OUTPUT_DIR := $(PWD)/../S2M-Test/results
 DATA_CSV := $(DATA_DIR)/signs.csv
-CONFIG_FILE := $(OUTPUT_DIR)/s2m_config.yaml
 endif
 
 # Model settings
@@ -143,30 +141,7 @@ example/overfit_config.yaml: signwriting_transcription/config.yaml
 	  -e 's/eval_on_start: True/eval_on_start: False/' \
 	  "signwriting_transcription/config.yaml" > "$@"
 
-$(OUTPUT_DIR)/s2m_config.yaml: signwriting_transcription/config.yaml
-	mkdir -p "$(OUTPUT_DIR)"
-	sed \
-	  -e 's/auto_find_batch_size: True/auto_find_batch_size: False/' \
-	  -e 's/per_device_train_batch_size: .*/per_device_train_batch_size: 4/' \
-	  -e 's/per_device_eval_batch_size: .*/per_device_eval_batch_size: 4/' \
-	  -e 's/dataloader_num_workers: .*/dataloader_num_workers: 4/' \
-	  -e 's/gradient_accumulation_steps: .*/gradient_accumulation_steps: 1/' \
-	  -e 's/multimodal_mapper_dropout: .*/multimodal_mapper_dropout: 0.0/' \
-	  -e 's/weight_decay: .*/weight_decay: 0/' \
-	  -e 's/lr_scheduler_type: .*/lr_scheduler_type: "constant"/' \
-	  -e 's/warmup_steps: .*/warmup_steps: 0/' \
-	  -e 's/max_steps: .*/max_steps: 256/' \
-	  -e 's/eval_steps: .*/eval_steps: 256/' \
-	  -e 's/save_steps: .*/save_steps: 256/' \
-	  -e 's/num_train_epochs: .*/num_train_epochs: 100/' \
-	  -e 's/do_eval: True/do_eval: False/' \
-	  -e 's/eval_on_start: True/eval_on_start: False/' \
-	  "signwriting_transcription/config.yaml" > "$@"
-
 overfit: example/overfit_config.yaml
-	wandb offline
-
-s2m: $(OUTPUT_DIR)/s2m_config.yaml
 	wandb offline
 
 # Docker commands (platform-agnostic)
