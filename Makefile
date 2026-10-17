@@ -9,19 +9,12 @@ DATA_CSV ?= $(DATA_DIR)/data.csv
 # Default configuration
 CONFIG_FILE ?= signwriting_transcription/config.yaml
 
-ifeq ($(firstword $(MAKECMDGOALS)),overfit)
-DATA_DIR := example/data
-POSES_DIR := example/poses
-OUTPUT_DIR := example/results
-DATA_CSV := example/data.csv
-CONFIG_FILE := example/overfit_config.yaml
-endif
-
 ifeq ($(firstword $(MAKECMDGOALS)),s2m)
 DATA_DIR := $(PWD)/../S2M/data
 POSES_DIR := $(PWD)/../S2M/poses
 OUTPUT_DIR := $(PWD)/../S2M/results
 DATA_CSV := $(DATA_DIR)/signs.csv
+CONFIG_FILE := $(OUTPUT_DIR)/s2m_config.yaml
 endif
 
 ifeq ($(firstword $(MAKECMDGOALS)),s2m-test)
@@ -29,6 +22,7 @@ DATA_DIR := $(PWD)/../S2M-Test/data
 POSES_DIR := $(PWD)/../S2M-Test/poses
 OUTPUT_DIR := $(PWD)/../S2M-Test/results
 DATA_CSV := $(DATA_DIR)/signs.csv
+CONFIG_FILE := $(OUTPUT_DIR)/s2m_config.yaml
 endif
 
 # Model settings
@@ -46,7 +40,7 @@ help:
 
 # ----------------------------------------------------------
 
-.PHONY: prepare train overfit s2m s2m-test
+.PHONY: prepare train s2m s2m-test
 
 $(DATA_DIR):
 	mkdir -p $(DATA_DIR)
@@ -122,7 +116,8 @@ train:
 	  --config_path "$(OUTPUT_DIR)/config.yaml" \
 	  --output_dir "$(OUTPUT_DIR)"
 
-example/overfit_config.yaml: signwriting_transcription/config.yaml
+$(OUTPUT_DIR)/s2m_config.yaml: signwriting_transcription/config.yaml
+	mkdir -p "$(OUTPUT_DIR)"
 	sed \
 	  -e 's/auto_find_batch_size: True/auto_find_batch_size: False/' \
 	  -e 's/per_device_train_batch_size: .*/per_device_train_batch_size: 4/' \
@@ -141,7 +136,10 @@ example/overfit_config.yaml: signwriting_transcription/config.yaml
 	  -e 's/eval_on_start: True/eval_on_start: False/' \
 	  "signwriting_transcription/config.yaml" > "$@"
 
-overfit: example/overfit_config.yaml
+s2m: $(OUTPUT_DIR)/s2m_config.yaml
+	wandb offline
+
+s2m-test: $(OUTPUT_DIR)/s2m_config.yaml
 	wandb offline
 
 # Docker commands (platform-agnostic)
@@ -176,9 +174,6 @@ clean:
 	rm -rf __pycache__ */__pycache__ */*/__pycache__
 	rm -rf .pytest_cache
 	rm -rf *.egg-info
-	rm -rf example/data
-	rm -rf example/results
-	rm -f example/overfit_config.yaml
 	rm -rf wandb
 
 ## Install package in development mode
